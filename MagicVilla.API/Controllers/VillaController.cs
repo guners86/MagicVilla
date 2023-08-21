@@ -2,6 +2,8 @@
 using MagicVilla.API.Data;
 using MagicVilla.API.Models;
 using MagicVilla.API.Models.DataTransferObjects;
+using MagicVilla.API.Repository;
+using MagicVilla.API.Repository.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
@@ -15,13 +17,13 @@ namespace MagicVilla.API.Controllers
     public class VillaController : ControllerBase
     {
         private readonly ILogger<VillaController> _logger;
-        private readonly ApplicationDBContext _dbContext;
+        private readonly IVillaRepository _villaRepository;
         private readonly IMapper _mapper;
 
-        public VillaController(ILogger<VillaController> logger, ApplicationDBContext dBContext, IMapper mapper)
+        public VillaController(ILogger<VillaController> logger, IVillaRepository villaRepository, IMapper mapper)
         {
             _logger = logger;
-            _dbContext = dBContext;
+            _villaRepository = villaRepository;
             _mapper = mapper;
         }
 
@@ -30,7 +32,7 @@ namespace MagicVilla.API.Controllers
         public async Task<ActionResult<IEnumerable<VillaDto>>> GetVillas()
         {
             _logger.LogInformation("Get All Villages");
-            IEnumerable<Villa> villaList = await _dbContext.Villas.ToListAsync();
+            IEnumerable<Villa> villaList = await _villaRepository.GetAllAsync();
             return Ok(_mapper.Map<IEnumerable<VillaDto>>(villaList));
         }
 
@@ -46,14 +48,14 @@ namespace MagicVilla.API.Controllers
                 return BadRequest();
             }
 
-            var villa = await _dbContext.Villas.FirstOrDefaultAsync(x => x.Id.Equals(id));
+            var villa = await _villaRepository.GetAsync(x => x.Id.Equals(id));
 
             if (villa == null) 
             {
                 return NotFound();
             }
 
-            return Ok(_mapper.Map<IEnumerable<VillaDto>>(villa));
+            return Ok(_mapper.Map<VillaDto>(villa));
         }
 
         [HttpPost]
@@ -67,7 +69,7 @@ namespace MagicVilla.API.Controllers
                 return BadRequest(ModelState);
             }
 
-            if (await _dbContext.Villas.FirstOrDefaultAsync(x => x.Name.ToLower() == villaDto.Name.ToLower()) != null)
+            if (await _villaRepository.GetAsync(x => x.Name.ToLower() == villaDto.Name.ToLower()) != null)
             {
                 ModelState.AddModelError("Equal Name", $"The name {villaDto.Name} already exist");
                 return BadRequest(ModelState);
@@ -84,8 +86,7 @@ namespace MagicVilla.API.Controllers
             model.CreationDate = date;
             model.UpdateDate = date;
 
-            _dbContext.Villas.Add(model);
-            await _dbContext.SaveChangesAsync();
+            await _villaRepository.CreateAsync(model);
 
             return CreatedAtRoute("GetVilla", new { id = model.Id }, model);
         }
@@ -101,15 +102,14 @@ namespace MagicVilla.API.Controllers
                 return BadRequest();
             }
 
-            var villa = await _dbContext.Villas.FirstOrDefaultAsync(x => x.Id == id);
+            var villa = await _villaRepository.GetAsync(x => x.Id == id);
             
             if (villa == null)
             {
                 return NotFound();
             }
 
-            _dbContext.Villas.Remove(villa);
-            await _dbContext.SaveChangesAsync();
+            await _villaRepository.DeleteAsync(villa);
             return NoContent();
         }
 
@@ -124,7 +124,7 @@ namespace MagicVilla.API.Controllers
                 return BadRequest();
             }
 
-            var villa = await _dbContext.Villas.FirstOrDefaultAsync(x => x.Id.Equals(id));
+            var villa = await _villaRepository.GetAsync(x => x.Id.Equals(id), tracked: false);
 
             if (villa == null) 
             {
@@ -134,8 +134,7 @@ namespace MagicVilla.API.Controllers
             Villa model = _mapper.Map<Villa>(villaDto);
             model.UpdateDate = DateTime.Now;
 
-            _dbContext.Villas.Update(model);
-            _dbContext.SaveChanges();
+            await _villaRepository.UpdateAsync(model);
 
             return NoContent();
         }
@@ -151,7 +150,7 @@ namespace MagicVilla.API.Controllers
                 return BadRequest();
             }
 
-            var villa = await _dbContext.Villas.AsNoTracking().FirstOrDefaultAsync(x => x.Id.Equals(id));
+            var villa = await _villaRepository.GetAsync(x => x.Id.Equals(id), tracked: false);
 
             if (villa == null)
             {
@@ -169,8 +168,7 @@ namespace MagicVilla.API.Controllers
             Villa model = _mapper.Map<Villa>(villaDto);
             model.UpdateDate = DateTime.Now;
 
-            _dbContext.Villas.Update(model);
-            await _dbContext.SaveChangesAsync();
+            await _villaRepository.UpdateAsync(model);
 
             return NoContent();
         }
